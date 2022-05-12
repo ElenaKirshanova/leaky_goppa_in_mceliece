@@ -1,3 +1,10 @@
+"""
+	helper function for the project
+	Decoding McEliece with a Hint -- Secret Goppa Key Parts Reveal Everything
+	https://eprint.iacr.org/2022/525
+"""
+
+
 def constructL(ff, n):
 	"""
 		construct a set of size of the finite field ff
@@ -62,16 +69,25 @@ def gen_error(nerrs, n):
 	return vector(GF(2),error_vec)
 
 def getGfromH(H):
+	"""
+		generator matrix from parity check matrix
+	"""
 	G = matrix(H.transpose().kernel().basis())
 	return G
 
 def gen_message(k):
+	"""
+		generate a random binary vector of length k
+	"""
 	m = [0]*k
 	for i in range(k):
 		m[i] = ZZ.random_element(0,2)
 	return vector(GF(2),m)
 
 def compute_syndrome2(y,products):
+	"""
+		compute the syndrome of y using precomputed products
+	"""
 	n = len(y)
 	s = 0
 	for i in range(n):
@@ -79,6 +95,9 @@ def compute_syndrome2(y,products):
 	return s
 
 def compute_syndrome_plain(y,L,x):
+	"""
+		compute the syndrome of y unsing L and inderminant x
+	"""
 	n = len(y)
 	assert(n==len(L))
 	s = 0
@@ -104,6 +123,10 @@ def genLabr(L, I):
 	return Labr
 
 def genHG_abr(H, I, F):
+	"""
+		generate the submatrix of H taking only columns indexed by I
+		generate the corresponding abridged generator matrix
+	"""
 	T = len(I)
 	n = H.ncols()
 	Habr = matrix(F, H.nrows(), T)
@@ -118,6 +141,12 @@ def genHG_abr(H, I, F):
 	return Habr, Gabr
 
 def create_product_all(L, x):
+	"""
+		generate the product tree of elements from L
+		similar to Fast Multipoint Evaluation
+		(see von zu Gathen "Modern Computer Algerbra")
+		and return prod_i (x-alpha_i)
+	"""
     n = len(L)
     depth_max = ceil(log(n,2))
     #print('depth_max:', depth_max)
@@ -151,6 +180,10 @@ def create_product_all(L, x):
     return(path[depth_max-1])
 
 def create_products(L, x):
+	"""
+		generate product of the form prod_{i\neq j} (x-alpha_i) for all j
+		using the  prod_i (x-alpha_i)
+	"""
 	all_prod = create_product_all(L, x)
 	prods = [all_prod/(x-L[i]) for i in range(len(L))]
 	return prods
@@ -169,6 +202,11 @@ def genI(T, n):
 	return I
 
 def test_g(g_candidate, G, prods, R):
+	"""
+	for each codeword represented by a row of G,
+	compute its syndrome and check if g_candidate is divisible by it.
+	This eliminates faulty Goppa polynomial g_candidate
+	"""
 	k = G.nrows()
 	zerov = vector([0]*G.ncols())
 	Rquo = R.quotient(g_candidate, 'x1')
@@ -182,12 +220,15 @@ def test_g(g_candidate, G, prods, R):
 
 
 def get_gSet(G, k, prods, t):
+	"""
+		returns a set of possible Goppa polynomial
+		computed as factors of syndromes of G rows
+		We do not check for multiplicity (it should be 2)
+		of the factors, we check only for the degree. Any factor of degree >1
+		appears with multiplicity 2
+	"""
 	assert(G.nrows()>0)
 	c1 = G[0]
-	#zerov = vector([0]*G.ncols())
-	#while c1 == zerov:
-	#	c1 = gen_message(k)*G
-	#	print('keep generating zero-codeword')
 	syndrome = compute_syndrome2(c1, prods)
 	g_out_factors = list(syndrome.factor())
 	print('g_out_factors:', g_out_factors)
@@ -196,26 +237,13 @@ def get_gSet(G, k, prods, t):
 		if gpoly[0].degree() == t:
 			Gset.add(gpoly[0])
 			print(gpoly[0])
-	#if (len(Gset)==0):
-		#print('no candidate for g is found')
 	return Gset
-
-def get_gSet_plain_syndrome(G,t,L,x):
-	assert(G.nrows()>0)
-	c1 = G[0]
-	syndrome = compute_syndrome_plain(c1, L, x)
-	g_out_factors = list(syndrome.factor())
-	Gset = set()
-	for i, gpoly in enumerate(g_out_factors):
-		if gpoly[0].degree() == t:
-			Gset.add(gpoly[0])
-	if (len(Gset)==0):
-		print('no candidate for g is found')
-	return Gset
-
 
 
 def get_g(G, k, prods, t, R):
+	"""
+		returns a set of Goppa polynomials that passed through test_g
+	"""
 	Gset = get_gSet(G, k, prods, t)
 	good_g = set()
 	for g_candidate in Gset:
@@ -225,6 +253,9 @@ def get_g(G, k, prods, t, R):
 
 
 def check_for_zero_on_S(vec, S):
+	"""
+		check if vec has 0-coordinates on indices S
+	"""
 	res = sum([ZZ(vec[i]) for i in range(len(vec)) if i in S])
 	return not bool(res)
 
@@ -240,6 +271,10 @@ def positions_in_set(setA, setB):
 	return I
 
 def gen_instance(param_set,ff,F):
+	"""
+		generate a McEliece instance
+		Returns public H, Goppa point L, and Goppa polynomial g
+	"""
 
 	n = param_set['n']
 	k = param_set['k']
@@ -256,6 +291,20 @@ def gen_instance(param_set,ff,F):
 	return H, L, g
 
 def recoverL(H, I, g, Labr,F,R):
+	"""
+	recover the complete set of Goppa points
+	recieving on input public parity-check matrix H,
+	Goppa polynomial g, some Goppa points Labr indexed by I,
+	the finite field F and the polynomial ring R = F[x]
+
+
+	The algorithm first finds an invertible submatrix in H with columns indexed by Labr
+	(trying trials-many times)
+
+	It then computes unkonwn Goppa points using Equation (5) from
+	https://eprint.iacr.org/2022/525
+	"""
+
 	S.<xbar> = R.quo(g)
 	n = H.ncols()
 	k = n-H.nrows()
@@ -289,7 +338,11 @@ def recoverL(H, I, g, Labr,F,R):
 			zerov = vector([0]*Hpub_abr.ncols())
 
 			for vec in Hpub_abr.transpose().kernel():
+
+				# finding a good codeword
 				if vec[ind]==1:
+
+
 
 					c = vector(F, [0]*n)
 					for i in range(len(vec)):
@@ -304,6 +357,7 @@ def recoverL(H, I, g, Labr,F,R):
 							syndrome+=c[i]/(x-Labr[counter])
 							counter+=1
 
+					# finding alpha unsing Eq.(5)
 					smodg = S(syndrome.subs({x:xbar}))
 					if not smodg==0:
 						#if (1/smodg).lift().degree()>1:
@@ -314,7 +368,7 @@ def recoverL(H, I, g, Labr,F,R):
 					else:
 						element = 0
 						#print('found 0 element in L')
-					print('found L[', istar, '] = ', element)
+					#print('found L[', istar, '] = ', element)
 					Labr = Labr[:ind]+[element]+Labr[ind:]
 					exit_flag = True
 					I = set(Iaug)
@@ -327,6 +381,15 @@ def recoverL(H, I, g, Labr,F,R):
 	return Labr
 
 def recover_Hpriv_complete(H, g, Labr, F, ff, kappa, I):
+	"""
+		computing a privite parity-check matrix
+		by (1) creating an invertible submatrix of the public H and
+		(2) generating a privite submatrix from the subset of Goppa points Labr
+		and g. We then find an invertible transformation (U) between them.
+
+		Assumes that len(Labr)==nrows+1. Uncomment the commented out lines for
+		the function to work with any Labr>=nrows+1
+	"""
 	#assert(dim<len(Labr))
 	nrows = H.nrows()
 	assert(len(Labr)>nrows)
@@ -372,7 +435,8 @@ def recover_Hpriv_complete(H, g, Labr, F, ff, kappa, I):
 
 def recover_all_alpha(Lleaked, g, Hpriv_candidate, ff, kappa, target_size):
 	"""
-
+	Using a candindate for the privite parity-check matrix found in recover_Hpriv_complete,
+	find all Goppa points by brute-forcing over the field ff
 	"""
 	V, from_V, to_V = ff.vector_space(F, map=True)
 	LeakedSet = set(Lleaked)
@@ -400,64 +464,11 @@ def recover_all_alpha(Lleaked, g, Hpriv_candidate, ff, kappa, target_size):
 
 	return L_remaining
 
-def recover_some_L(H,I,g,Labr,R):
-	S.<xbar> = R.quo(g)
-	n = H.ncols()
-	k = n-H.nrows()
-
-	while len(I)<n-k+6:
-		sizeI = len(I)
-		#print('I:', I, len(I))
-		Htmp = H[[i for i in range(H.nrows())],[j for j in I]]
-		notI = set([i for i in range(n)]).difference(I)
-		for j in notI:
-			Haug = Htmp.augment(H.column(j))
-			#print(j, Haug.rank(), Htmp.rank())
-			if Haug.rank()==Htmp.rank():
-				Iaug = sorted(set(I).union({j}))
-				vec = Htmp.solve_right(H.column(j))
-				ind = list(positions_in_set(Iaug, {j}))[0]
-
-
-				c = vector(F, [0]*n)
-				counter = 0
-				for i in range(len(vec)):
-					if vec[i]==1:
-						c[list(I)[i]] = 1
-				c[j] = 1
-				assert(H*c == vector(F, [0]*(n-k))), 'c is a codeword'
-
-				syndrome = 0
-				counter = 0
-				for i in range(len(c)):
-					if i in I and not i==j:
-						syndrome+=c[i]/(x-Labr[counter])
-						counter+=1
-
-				smodg = S(syndrome.subs({x:xbar}))
-				if not smodg==0:
-					if not((1/smodg).lift().degree()==1):
-						print('wrong degree in 1/smodg')
-						return {}, {}
-					element = (1/smodg).lift().roots()[0][0]
-				else:
-					element = 0
-				#print('found L[', ind, '] = ', element)
-				Labr = Labr[:ind]+[element]+Labr[ind:]
-
-				I = set(Iaug)
-
-				break
-		if len(I)==sizeI:
-			print('could not find a solution with sizeI = ', sizeI)
-			return {}, {}
-	return Labr, I
-
-
-
-
 
 def recoverL_beyond_bound(H, I, g, Labr, R):
+	"""
+	same as recoverL()
+	"""
 	S.<xbar> = R.quo(g)
 	n = H.ncols()
 	k = n-H.nrows()

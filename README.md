@@ -22,6 +22,7 @@ Short description of the content:
 * run_Goppa_complete.sage implements Algorithm 3.4 from [KM]
 * run_Goppa_polynomial_invertible.sage implements Algorithm 3.3 from [KM]
 * run_Goppa_polynomial.sage implements Algorithm 3.3 without the assumption on the rank of H^{pub}[I]. The algorithm succeeds with probability ~0.57
+* run_Goppa_known_g.sage implements Algorithm 3.^ from [KM]
 * utils.sage (helper file)
 
 
@@ -48,6 +49,12 @@ sage run_advanced_polynomial_invertible.sage
 Concrete McEliece parameter set must be changed in the script.
 
 To recreate Table 4 from [KM] run
+```
+sage run_Goppa_known_g.sage
+```
+Concrete McEliece parameter set must be changed in the script.
+
+To recreate Table 5 from [KM] run
 ```
 sage faulty_alphas.sage
 ```
